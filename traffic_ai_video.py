@@ -9,7 +9,7 @@ model = YOLO('yolov8n.pt')
 # Video source
 cap = cv2.VideoCapture(r"C:\FlowSync AI\test_media\sample_traffic.mp4")
 
-# Flask setup (Step 2)
+# Flask setup
 app = Flask(__name__)
 latest_density = "Low"
 
@@ -18,12 +18,12 @@ def get_density():
     return jsonify({'density': latest_density})
 
 def run_server():
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
 
-# Start Flask in background
-threading.Thread(target=run_server).start()
+# Start Flask in background (VERY IMPORTANT: daemon=True)
+threading.Thread(target=run_server, daemon=True).start()
 
-# Vehicle classes (Step 1)
+# Vehicle classes (COCO IDs)
 vehicle_classes = [2, 3, 5, 7]  # car, motorcycle, bus, truck
 
 while True:
@@ -38,13 +38,14 @@ while True:
     boxes = results[0].boxes
     vehicle_count = 0
 
-    # Count vehicles (Step 1)
-    for box in boxes:
-        cls = int(box.cls)
-        if cls in vehicle_classes:
-            vehicle_count += 1
+    # Count vehicles
+    if boxes is not None:
+        for box in boxes:
+            cls = int(box.cls[0])  # FIX: must use [0]
+            if cls in vehicle_classes:
+                vehicle_count += 1
 
-    # Density logic (Step 1)
+    # Density logic
     if vehicle_count <= 5:
         density = "Low"
     elif vehicle_count <= 15:
@@ -52,7 +53,7 @@ while True:
     else:
         density = "High"
 
-    # Update API value (Step 2)
+    # Update API value (CRITICAL: global)
     latest_density = density
 
     print(f"Vehicles: {vehicle_count} | Density: {density}")
@@ -61,10 +62,10 @@ while True:
 
     # Display info
     cv2.putText(annotated_frame, f"Count: {vehicle_count}",
-                (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+                (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
     cv2.putText(annotated_frame, f"Density: {density}",
-                (20, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 2)
+                (20, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
     cv2.imshow("Traffic Detection", annotated_frame)
 
