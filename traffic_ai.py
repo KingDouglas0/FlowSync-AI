@@ -4,7 +4,7 @@ import cv2
 
 model = YOLO('yolov8n.pt')
 
-frame = cv2.imread(r"C:\FlowSync AI\test_media\test.jpg")
+frame = cv2.imread(r"C:\FlowSync AI\test_media\test7.jpg")
 
 if frame is None:
     print("❌ Image NOT found. Check path.")
