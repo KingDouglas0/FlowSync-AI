@@ -6,71 +6,104 @@ import threading
 # Load model
 model = YOLO('yolov8n.pt')
 
-# Video source
-cap = cv2.VideoCapture(r"C:\FlowSync AI\test_media\sample_traffic.mp4")
+# === STEP 1: 3 VIDEO SOURCES ===
+cap_A = cv2.VideoCapture(r"C:\FlowSync AI\test_media\laneA.mp4")
+cap_B = cv2.VideoCapture(r"C:\FlowSync AI\test_media\laneB.mp4")
+cap_C = cv2.VideoCapture(r"C:\FlowSync AI\test_media\laneC.mp4")
 
 # Flask setup
 app = Flask(__name__)
-latest_density = "Low"
+
+# Store latest result
+latest_data = {
+    "lane_A": 0,
+    "lane_B": 0,
+    "lane_C": 0,
+    "green": "A"
+}
 
 @app.route('/traffic', methods=['GET'])
-def get_density():
-    return jsonify({'density': latest_density})
+def get_traffic():
+    return jsonify(latest_data)
 
 def run_server():
     app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
 
-# Start Flask in background (VERY IMPORTANT: daemon=True)
 threading.Thread(target=run_server, daemon=True).start()
 
-# Vehicle classes (COCO IDs)
-vehicle_classes = [2, 3, 5, 7]  # car, motorcycle, bus, truck
+# Vehicle classes
+vehicle_classes = [2, 3, 5, 7]
+
+# === STEP 2: COUNT FUNCTION ===
+def count_vehicles(frame):
+    results = model(frame)
+    boxes = results[0].boxes
+
+    count = 0
+    if boxes is not None:
+        for box in boxes:
+            cls = int(box.cls[0])
+            if cls in vehicle_classes:
+                count += 1
+
+    return count, results
+
 
 while True:
-    ret, frame = cap.read()
+    # === STEP 3: READ ALL LANES ===
+    retA, frameA = cap_A.read()
+    retB, frameB = cap_B.read()
+    retC, frameC = cap_C.read()
 
-    if not ret:
+    if not (retA and retB and retC):
         print("End of video")
         break
 
-    results = model(frame)
+    # === STEP 4: COUNT ===
+    countA, resA = count_vehicles(frameA)
+    countB, resB = count_vehicles(frameB)
+    countC, resC = count_vehicles(frameC)
 
-    boxes = results[0].boxes
-    vehicle_count = 0
+    # === STEP 5: DECISION ===
+    lane_counts = {
+        "A": countA,
+        "B": countB,
+        "C": countC
+    }
 
-    # Count vehicles
-    if boxes is not None:
-        for box in boxes:
-            cls = int(box.cls[0])  # FIX: must use [0]
-            if cls in vehicle_classes:
-                vehicle_count += 1
+    green_lane = max(lane_counts, key=lane_counts.get)
 
-    # Density logic
-    if vehicle_count <= 5:
-        density = "Low"
-    elif vehicle_count <= 15:
-        density = "Medium"
-    else:
-        density = "High"
+    # === STEP 6: UPDATE API ===
+    latest_data["lane_A"] = countA
+    latest_data["lane_B"] = countB
+    latest_data["lane_C"] = countC
+    latest_data["green"] = green_lane
 
-    # Update API value (CRITICAL: global)
-    latest_density = density
+    print(f"A:{countA} B:{countB} C:{countC} → GREEN: {green_lane}")
 
-    print(f"Vehicles: {vehicle_count} | Density: {density}")
+    # === STEP 7: DISPLAY ===
+    frameA = resA[0].plot()
+    frameB = resB[0].plot()
+    frameC = resC[0].plot()
 
-    annotated_frame = results[0].plot()
+    cv2.putText(frameA, f"A: {countA}", (20, 50),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
 
-    # Display info
-    cv2.putText(annotated_frame, f"Count: {vehicle_count}",
-                (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+    cv2.putText(frameB, f"B: {countB}", (20, 50),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
 
-    cv2.putText(annotated_frame, f"Density: {density}",
-                (20, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+    cv2.putText(frameC, f"C: {countC}", (20, 50),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
 
-    cv2.imshow("Traffic Detection", annotated_frame)
+    cv2.imshow("Lane A", frameA)
+    cv2.imshow("Lane B", frameB)
+    cv2.imshow("Lane C", frameC)
 
     if cv2.waitKey(1) & 0xFF == 27:
         break
 
-cap.release()
+# Cleanup
+cap_A.release()
+cap_B.release()
+cap_C.release()
 cv2.destroyAllWindows()
