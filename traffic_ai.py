@@ -61,8 +61,8 @@ while True:
     print("="*50)
 
     # === LOAD IMAGES ===
-    img_A = cv2.imread(r"C:\FlowSync AI\test_media\test7.jpg")
-    img_B = cv2.imread(r"C:\FlowSync AI\test_media\test6.jpg")
+    img_A = cv2.imread(r"C:\FlowSync AI\test_media\test6.jpg")
+    img_B = cv2.imread(r"C:\FlowSync AI\test_media\test7.jpg")
     img_C = cv2.imread(r"C:\FlowSync AI\test_media\test5.jpg")
 
     if img_A is None or img_B is None or img_C is None:
