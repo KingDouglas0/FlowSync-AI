@@ -15,8 +15,10 @@ latest_data = {
     "lane_A": 0,
     "lane_B": 0,
     "lane_C": 0,
-    "green": "A",
-    "time": 25
+    "green": "none",
+    "time": 0,
+    "cycle_position": 1,   # 1=highest, 2=medium, 3=lowest
+    "total_cycles": 0
 }
 
 @app.route('/traffic', methods=['GET'])
@@ -32,23 +34,17 @@ threading.Thread(target=run_server, daemon=True).start()
 # Vehicle classes (COCO)
 vehicle_classes = [2, 3, 5, 7]  # car, motorcycle, bus, truck
 
-
-# ✅ FIX: ADD THIS FUNCTION (you were missing it)
 def count_vehicles(frame):
     results = model(frame)
     boxes = results[0].boxes
-
     count = 0
     if boxes is not None:
         for box in boxes:
-            cls = int(box.cls[0])  # important fix
+            cls = int(box.cls[0])
             if cls in vehicle_classes:
                 count += 1
-
     return count
 
-
-# Green time logic
 def get_green_time(count):
     if count <= 5:
         return 25
@@ -57,8 +53,13 @@ def get_green_time(count):
     else:
         return 70
 
+cycle_count = 0
 
 while True:
+    print("\n" + "="*50)
+    print("🔍 Scanning all lanes...")
+    print("="*50)
+
     # === LOAD IMAGES ===
     img_A = cv2.imread(r"C:\FlowSync AI\test_media\test7.jpg")
     img_B = cv2.imread(r"C:\FlowSync AI\test_media\test6.jpg")
@@ -73,27 +74,39 @@ while True:
     countB = count_vehicles(img_B)
     countC = count_vehicles(img_C)
 
-    # === DECISION ===
-    lane_counts = {
-        "A": countA,
-        "B": countB,
-        "C": countC
-    }
+    print(f"📊 Scan results → A:{countA}  B:{countB}  C:{countC}")
 
-    green_lane = max(lane_counts, key=lane_counts.get)
-
-    # === TIME BASED ON DENSITY ===
-    selected_count = lane_counts[green_lane]
-    green_time = get_green_time(selected_count)
-
-    # === UPDATE API ===
+    # === UPDATE COUNTS IN API ===
     latest_data["lane_A"] = countA
     latest_data["lane_B"] = countB
     latest_data["lane_C"] = countC
-    latest_data["green"] = green_lane
-    latest_data["time"] = green_time
+    cycle_count += 1
+    latest_data["total_cycles"] = cycle_count
 
-    print(f"A:{countA} B:{countB} C:{countC} → GREEN: {green_lane} ({green_time}s)")
+    # === SORT LANES: highest → medium → lowest ===
+    lane_counts = {"A": countA, "B": countB, "C": countC}
+    sorted_lanes = sorted(lane_counts.items(), key=lambda x: x[1], reverse=True)
 
-    # === HOLD GREEN LIGHT ===
-    time.sleep(green_time)
+    priority_labels = ["🟢 HIGH (1st)", "🟡 MEDIUM (2nd)", "🔴 LOW (3rd)"]
+
+    # === RUN THE FULL PRIORITY CYCLE ===
+    for position, (lane, count) in enumerate(sorted_lanes):
+        green_time = get_green_time(count)
+
+        # Update shared API data
+        latest_data["green"] = lane
+        latest_data["time"] = green_time
+        latest_data["cycle_position"] = position + 1
+
+        print(f"\n{priority_labels[position]}")
+        print(f"  Lane {lane} → {count} vehicles → GREEN for {green_time}s")
+
+        # Countdown display while lane is green
+        for remaining in range(green_time, 0, -1):
+            latest_data["time"] = remaining
+            print(f"  ⏱  Lane {lane} GREEN — {remaining}s remaining", end="\r")
+            time.sleep(1)
+
+        print(f"\n  ✅ Lane {lane} done.")
+
+    print(f"\n🔄 Full cycle complete. Re-scanning now... (Total cycles: {cycle_count})")
