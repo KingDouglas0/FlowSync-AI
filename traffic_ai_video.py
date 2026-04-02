@@ -3,14 +3,16 @@ import cv2
 from flask import Flask, jsonify
 import threading
 import time
+import logging
 
-# Load model
 model = YOLO('yolov8n.pt')
 
-# Flask setup
 app = Flask(__name__)
 
-# Shared data
+# ── Silence Flask request logs so they don't break the countdown ──────────────
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
+
 latest_data = {
     "lane_A": 0,
     "lane_B": 0,
@@ -30,8 +32,7 @@ def run_server():
 
 threading.Thread(target=run_server, daemon=True).start()
 
-# Vehicle classes (COCO)
-vehicle_classes = [2, 3, 5, 7]  # car, motorcycle, bus, truck
+vehicle_classes = [2, 3, 5, 7]
 
 def get_green_time(count):
     if count <= 5:
@@ -53,9 +54,6 @@ def count_vehicles(frame):
     return count, results
 
 def read_frame(cap):
-    """
-    Read next frame. If video ends, loop back to beginning.
-    """
     ret, frame = cap.read()
     if not ret:
         cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
@@ -64,25 +62,16 @@ def read_frame(cap):
 
 def show_frames(frameA, frameB, frameC, resA, resB, resC,
                 countA, countB, countC, green_lane, remaining):
-    """
-    Draw detection overlays and status text, then display all 3 windows.
-    Returns True to keep running, False if ESC pressed.
-    """
     dispA = resA[0].plot()
     dispB = resB[0].plot()
     dispC = resC[0].plot()
 
-    # Color coding: green lane gets green text, others get red
     for disp, lane, count in [(dispA, "A", countA),
                                (dispB, "B", countB),
                                (dispC, "C", countC)]:
         color = (0, 255, 0) if lane == green_lane else (0, 0, 255)
-
-        # Vehicle count
         cv2.putText(disp, f"Lane {lane}: {count} vehicles",
                     (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
-
-        # Green light indicator
         if lane == green_lane:
             cv2.putText(disp, f"GREEN  {remaining}s",
                         (20, 95), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
@@ -94,7 +83,6 @@ def show_frames(frameA, frameB, frameC, resA, resB, resC,
     cv2.imshow("Lane B", dispB)
     cv2.imshow("Lane C", dispC)
 
-    # ESC to quit
     if cv2.waitKey(1) & 0xFF == 27:
         return False
     return True
@@ -110,13 +98,11 @@ if not (cap_A.isOpened() and cap_B.isOpened() and cap_C.isOpened()):
 
 cycle_count = 0
 
-# ── Main loop ─────────────────────────────────────────────────────────────────
 while True:
     print("\n" + "="*50)
     print("🔍 Scanning all lanes...")
     print("="*50)
 
-    # === READ ONE FRAME FROM EACH LANE ===
     retA, frameA = read_frame(cap_A)
     retB, frameB = read_frame(cap_B)
     retC, frameC = read_frame(cap_C)
@@ -125,27 +111,22 @@ while True:
         print("❌ Could not read frames")
         break
 
-    # === COUNT VEHICLES ===
     countA, resA = count_vehicles(frameA)
     countB, resB = count_vehicles(frameB)
     countC, resC = count_vehicles(frameC)
 
     print(f"📊 Scan results → A:{countA}  B:{countB}  C:{countC}")
 
-    # === UPDATE API COUNTS ===
     latest_data["lane_A"] = countA
     latest_data["lane_B"] = countB
     latest_data["lane_C"] = countC
     cycle_count += 1
     latest_data["total_cycles"] = cycle_count
 
-    # === SORT LANES: highest → medium → lowest ===
     lane_counts = {"A": countA, "B": countB, "C": countC}
     sorted_lanes = sorted(lane_counts.items(), key=lambda x: x[1], reverse=True)
-
     priority_labels = ["🟢 HIGH (1st)", "🟡 MEDIUM (2nd)", "🔴 LOW (3rd)"]
 
-    # === RUN THE FULL PRIORITY CYCLE ===
     for position, (lane, count) in enumerate(sorted_lanes):
         green_time = get_green_time(count)
 
@@ -154,24 +135,22 @@ while True:
         latest_data["cycle_position"] = position + 1
 
         print(f"\n{priority_labels[position]}")
-        print(f"  Lane {lane} → {count} vehicles → GREEN for {green_time}s")
+        print(f"  Lane {lane} → {count} vehicles → GREEN for {green_time}s",
+              flush=True)
 
-        # === HOLD GREEN + KEEP VIDEO PLAYING ===
         for remaining in range(green_time, 0, -1):
             latest_data["time"] = remaining
-            print(f"  ⏱  Lane {lane} GREEN — {remaining}s remaining", end="\r")
+            print(f"  ⏱  Lane {lane} GREEN — {remaining}s remaining   ",
+                  end="\r", flush=True)
 
-            # Read fresh frames every second to keep video moving
             _, frameA = read_frame(cap_A)
             _, frameB = read_frame(cap_B)
             _, frameC = read_frame(cap_C)
 
-            # Re-run detection on fresh frames for live display
             _, resA = count_vehicles(frameA)
             _, resB = count_vehicles(frameB)
             _, resC = count_vehicles(frameC)
 
-            # Show windows — exit if ESC pressed
             keep_running = show_frames(
                 frameA, frameB, frameC,
                 resA, resB, resC,
@@ -188,11 +167,12 @@ while True:
 
             time.sleep(1)
 
-        print(f"\n  ✅ Lane {lane} done.")
+        print()
+        latest_data["green"] = "none"
+        print(f"  ✅ Lane {lane} done.", flush=True)
 
     print(f"\n🔄 Full cycle complete. Re-scanning now... (Total cycles: {cycle_count})")
 
-# Cleanup
 cap_A.release()
 cap_B.release()
 cap_C.release()
