@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowSync Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0a0f14;
+    color: #e0e8f0;
+    min-height: 100vh;
+    padding: 1.5rem;
+  }
+
+  .top-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1.5rem; flex-wrap: wrap; gap: 12px;
+  }
+
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-icon {
+    width: 36px; height: 36px; border-radius: 8px;
+    background: #0d3b5e;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .brand-icon svg { width: 18px; height: 18px; }
+  .brand-name { font-size: 18px; font-weight: 600; color: #ffffff; }
+  .brand-sub  { font-size: 12px; color: #5a7a90; margin-top: 1px; }
+
+  .top-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  .status-pill {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: #5a7a90;
+    border: 1px solid #1a2a38;
+    border-radius: 999px; padding: 5px 12px;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; transition: background 0.3s; }
+  .dot-live { background: #2ea84a; }
+  .dot-dead { background: #e24b4a; }
+
+  .url-input {
+    background: #0d1922; border: 1px solid #1a2a38;
+    color: #c0d8e8; font-size: 12px; font-family: monospace;
+    border-radius: 6px; padding: 6px 10px; width: 240px;
+    outline: none;
+  }
+  .url-input:focus { border-color: #1d6a9a; }
+
+  .btn {
+    background: #0d3b5e; border: 1px solid #1d6a9a;
+    color: #7ec8f0; font-size: 12px; border-radius: 6px;
+    padding: 6px 14px; cursor: pointer; transition: background 0.2s;
+  }
+  .btn:hover { background: #1a4d6e; }
+
+  .metrics-row {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 10px; margin-bottom: 1.25rem;
+  }
+  .metric-card {
+    background: #0d1922; border: 1px solid #1a2a38;
+    border-radius: 10px; padding: 1rem 1.1rem;
+  }
+  .metric-label { font-size: 11px; color: #5a7a90; margin-bottom: 5px; letter-spacing: 0.04em; text-transform: uppercase; }
+  .metric-value { font-size: 26px; font-weight: 600; color: #ffffff; }
+  .metric-sub   { font-size: 11px; color: #5a7a90; margin-top: 3px; }
+
+  .lanes-row {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 12px; margin-bottom: 1.25rem;
+  }
+
+  .lane-card {
+    background: #0d1922; border: 1px solid #1a2a38;
+    border-radius: 12px; padding: 1.1rem 1.2rem;
+    transition: border-color 0.3s;
+  }
+  .lane-card.active-green  { border-color: #2ea84a; }
+  .lane-card.active-yellow { border-color: #d4930a; }
+
+  .lane-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .lane-title  { font-size: 13px; font-weight: 600; color: #7a9ab0; letter-spacing: 0.05em; }
+
+  .signal { display: flex; gap: 6px; }
+  .sig-dot {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 1.5px solid #1a2a38;
+    background: #0d1922; transition: background 0.3s, border-color 0.3s, box-shadow 0.3s;
+  }
+  .sig-dot.on-red    { background: #c0392b; border-color: #8b0000; box-shadow: 0 0 6px #c0392b88; }
+  .sig-dot.on-yellow { background: #d4930a; border-color: #a06800; box-shadow: 0 0 6px #d4930a88; }
+  .sig-dot.on-green  { background: #2ea84a; border-color: #1a7030; box-shadow: 0 0 6px #2ea84a88; }
+
+  .lane-count       { font-size: 38px; font-weight: 700; color: #ffffff; line-height: 1; }
+  .lane-count-label { font-size: 11px; color: #5a7a90; margin-top: 4px; }
+
+  .lane-bar-wrap { margin-top: 12px; height: 5px; background: #1a2a38; border-radius: 99px; overflow: hidden; }
+  .lane-bar { height: 100%; border-radius: 99px; transition: width 0.5s ease, background 0.3s; background: #1a2a38; }
+  .lane-bar.bar-green  { background: #2ea84a; }
+  .lane-bar.bar-yellow { background: #d4930a; }
+  .lane-bar.bar-red    { background: #e24b4a; }
+
+  .lane-status      { font-size: 11px; font-weight: 600; margin-top: 7px; letter-spacing: 0.03em; }
+  .lane-status.st-green  { color: #2ea84a; }
+  .lane-status.st-yellow { color: #d4930a; }
+  .lane-status.st-red    { color: #e24b4a; }
+
+  .ir-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10px; margin-top: 8px;
+    padding: 3px 8px; border-radius: 99px;
+    border: 1px solid #1a2a38; color: #5a7a90;
+    transition: border-color 0.3s, color 0.3s;
+  }
+  .ir-badge .ir-dot { width: 5px; height: 5px; border-radius: 50%; background: #1a2a38; transition: background 0.3s; }
+  .ir-badge.active  { border-color: #d4930a; color: #d4930a; }
+  .ir-badge.active .ir-dot { background: #d4930a; }
+
+  .bottom-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .panel {
+    background: #0d1922; border: 1px solid #1a2a38;
+    border-radius: 12px; padding: 1.1rem 1.2rem;
+  }
+  .panel-title { font-size: 11px; color: #5a7a90; margin-bottom: 12px; letter-spacing: 0.05em; text-transform: uppercase; }
+
+  .cycle-track  { display: flex; gap: 6px; }
+  .cycle-step   { flex: 1; height: 6px; border-radius: 99px; background: #1a2a38; transition: background 0.4s; }
+  .cycle-step.done   { background: #2ea84a; }
+  .cycle-step.active { background: #d4930a; }
+
+  .cycle-labels { display: flex; gap: 6px; margin-top: 6px; }
+  .cycle-lbl    { flex: 1; font-size: 10px; color: #5a7a90; text-align: center; }
+
+  .timer-wrap  { display: flex; align-items: baseline; gap: 6px; margin-top: 14px; }
+  .timer-num   { font-size: 42px; font-weight: 700; color: #ffffff; }
+  .timer-unit  { font-size: 14px; color: #5a7a90; }
+  .timer-label { font-size: 11px; color: #5a7a90; margin-top: 4px; }
+
+  .timer-bar-wrap { height: 5px; background: #1a2a38; border-radius: 99px; overflow: hidden; margin-top: 10px; }
+  .timer-bar { height: 100%; border-radius: 99px; transition: width 0.9s linear, background 0.3s; }
+
+  .log-list { list-style: none; display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto; }
+  .log-item  { display: flex; gap: 10px; align-items: flex-start; }
+  .log-time  { font-size: 11px; color: #3a5a70; white-space: nowrap; flex-shrink: 0; font-family: monospace; }
+  .log-msg   { font-size: 12px; color: #7a9ab0; }
+  .log-list::-webkit-scrollbar { width: 4px; }
+  .log-list::-webkit-scrollbar-track { background: transparent; }
+  .log-list::-webkit-scrollbar-thumb { background: #1a2a38; border-radius: 99px; }
+
+  @media (max-width: 700px) {
+    .metrics-row { grid-template-columns: 1fr 1fr; }
+    .lanes-row   { grid-template-columns: 1fr; }
+    .bottom-row  { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="brand">
+    <div class="brand-icon">
+      <svg viewBox="0 0 18 18" fill="none">
+        <circle cx="9" cy="9" r="7" stroke="#7ec8f0" stroke-width="1.5"/>
+        <path d="M6 9h6M9 6v6" stroke="#7ec8f0" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div>
+      <div class="brand-name">FlowSync</div>
+      <div class="brand-sub">Decentralized traffic intelligence</div>
+    </div>
+  </div>
+
+  <div class="top-right">
+    <div class="status-pill">
+      <div class="dot dot-dead" id="conn-dot"></div>
+      <span id="conn-label">Disconnected</span>
+    </div>
+    <input class="url-input" id="server-url" value="http://127.0.0.1:5000/traffic" />
+    <button class="btn" id="conn-btn" onclick="toggleConnect()">Connect</button>
+  </div>
+</div>
+
+<div class="metrics-row">
+  <div class="metric-card">
+    <div class="metric-label">Total cycles</div>
+    <div class="metric-value" id="m-cycles">—</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Active lane</div>
+    <div class="metric-value" id="m-green">—</div>
+    <div class="metric-sub" id="m-phase">waiting for data</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Time remaining</div>
+    <div class="metric-value" id="m-time">—</div>
+    <div class="metric-sub">seconds</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Cycle position</div>
+    <div class="metric-value" id="m-pos">—</div>
+    <div class="metric-sub">of 3 lanes</div>
+  </div>
+</div>
+
+<div class="lanes-row">
+  <div class="lane-card" id="card-A">
+    <div class="lane-header">
+      <span class="lane-title">LANE A</span>
+      <div class="signal">
+        <div class="sig-dot" id="A-red"></div>
+        <div class="sig-dot" id="A-yellow"></div>
+        <div class="sig-dot" id="A-green"></div>
+      </div>
+    </div>
+    <div class="lane-count" id="A-count">—</div>
+    <div class="lane-count-label">vehicles detected</div>
+    <div class="lane-bar-wrap"><div class="lane-bar" id="A-bar"></div></div>
+    <div class="lane-status" id="A-status">—</div>
+  </div>
+
+  <div class="lane-card" id="card-B">
+    <div class="lane-header">
+      <span class="lane-title">LANE B</span>
+      <div class="signal">
+        <div class="sig-dot" id="B-red"></div>
+        <div class="sig-dot" id="B-yellow"></div>
+        <div class="sig-dot" id="B-green"></div>
+      </div>
+    </div>
+    <div class="lane-count" id="B-count">—</div>
+    <div class="lane-count-label">vehicles detected</div>
+    <div class="lane-bar-wrap"><div class="lane-bar" id="B-bar"></div></div>
+    <div class="lane-status" id="B-status">—</div>
+    <div class="ir-badge" id="ir-B"><div class="ir-dot"></div>IR sensor B</div>
+  </div>
+
+  <div class="lane-card" id="card-C">
+    <div class="lane-header">
+      <span class="lane-title">LANE C</span>
+      <div class="signal">
+        <div class="sig-dot" id="C-red"></div>
+        <div class="sig-dot" id="C-yellow"></div>
+        <div class="sig-dot" id="C-green"></div>
+      </div>
+    </div>
+    <div class="lane-count" id="C-count">—</div>
+    <div class="lane-count-label">vehicles detected</div>
+    <div class="lane-bar-wrap"><div class="lane-bar" id="C-bar"></div></div>
+    <div class="lane-status" id="C-status">—</div>
+    <div class="ir-badge" id="ir-C"><div class="ir-dot"></div>IR sensor C</div>
+  </div>
+</div>
+
+<div class="bottom-row">
+  <div class="panel">
+    <div class="panel-title">Cycle progress</div>
+    <div class="cycle-track">
+      <div class="cycle-step" id="step-1"></div>
+      <div class="cycle-step" id="step-2"></div>
+      <div class="cycle-step" id="step-3"></div>
+    </div>
+    <div class="cycle-labels">
+      <div class="cycle-lbl" id="lbl-1">—</div>
+      <div class="cycle-lbl" id="lbl-2">—</div>
+      <div class="cycle-lbl" id="lbl-3">—</div>
+    </div>
+    <div class="timer-wrap">
+      <div class="timer-num" id="t-big">—</div>
+      <div class="timer-unit">s</div>
+    </div>
+    <div class="timer-label" id="t-label">waiting for connection</div>
+    <div class="timer-bar-wrap">
+      <div class="timer-bar" id="t-bar" style="width:0%"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Event log</div>
+    <ul class="log-list" id="log-list">
+      <li class="log-item">
+        <span class="log-time">--:--:--</span>
+        <span class="log-msg">Dashboard loaded — enter server URL and connect</span>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  let pollInterval = null;
+  let connected    = false;
+  let timerMax     = 70;
+  let cycleOrder   = [];
+  let prevGreen    = null;
+  let prevYellow   = null;
+  let prevCycle    = null;
+
+  function ts() {
+    return new Date().toLocaleTimeString('en-GB', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+  }
+
+  function addLog(msg) {
+    const list = document.getElementById('log-list');
+    const li   = document.createElement('li');
+    li.className = 'log-item';
+    li.innerHTML =
+      '<span class="log-time">' + ts() + '</span>' +
+      '<span class="log-msg">' + msg + '</span>';
+    list.prepend(li);
+    while (list.children.length > 40) list.removeChild(list.lastChild);
+  }
+
+  function setConnected(state) {
+    connected = state;
+    const dot = document.getElementById('conn-dot');
+    const lbl = document.getElementById('conn-label');
+    const btn = document.getElementById('conn-btn');
+    if (state) {
+      dot.className  = 'dot dot-live';
+      lbl.textContent = 'Live';
+      btn.textContent = 'Disconnect';
+    } else {
+      dot.className  = 'dot dot-dead';
+      lbl.textContent = 'Disconnected';
+      btn.textContent = 'Connect';
+    }
+  }
+
+  function toggleConnect() {
+    if (pollInterval) {
+      clearInterval(pollInterval);
+      pollInterval = null;
+      setConnected(false);
+      addLog('Disconnected from server');
+      return;
+    }
+    addLog('Connecting to ' + document.getElementById('server-url').value);
+    fetchData();
+    pollInterval = setInterval(fetchData, 1000);
+  }
+
+  function setSignal(lane, state) {
+    const r = document.getElementById(lane + '-red');
+    const y = document.getElementById(lane + '-yellow');
+    const g = document.getElementById(lane + '-green');
+    r.className = 'sig-dot' + (state === 'red'    ? ' on-red'    : '');
+    y.className = 'sig-dot' + (state === 'yellow' ? ' on-yellow' : '');
+    g.className = 'sig-dot' + (state === 'green'  ? ' on-green'  : '');
+  }
+
+  function setLaneCard(lane, state, count, maxCount) {
+    const card  = document.getElementById('card-' + lane);
+    const bar   = document.getElementById(lane + '-bar');
+    const stEl  = document.getElementById(lane + '-status');
+    const pct   = Math.round((count / Math.max(maxCount, 1)) * 100);
+
+    document.getElementById(lane + '-count').textContent = count;
+    bar.style.width = pct + '%';
+
+    card.classList.remove('active-green', 'active-yellow');
+    bar.classList.remove('bar-green', 'bar-yellow', 'bar-red');
+    stEl.classList.remove('st-green', 'st-yellow', 'st-red');
+
+    if (state === 'green') {
+      card.classList.add('active-green');
+      bar.classList.add('bar-green');
+      stEl.classList.add('st-green');
+      stEl.textContent = 'Green — active';
+    } else if (state === 'yellow') {
+      card.classList.add('active-yellow');
+      bar.classList.add('bar-yellow');
+      stEl.classList.add('st-yellow');
+      stEl.textContent = 'Yellow — transitioning';
+    } else {
+      bar.classList.add('bar-red');
+      stEl.classList.add('st-red');
+      stEl.textContent = 'Red — waiting';
+    }
+
+    setSignal(lane, state);
+  }
+
+  function updateCycleTrack(pos, totalCycles, greenLane) {
+    if (totalCycles !== prevCycle) {
+      cycleOrder = [];
+      prevCycle  = totalCycles;
+    }
+    if (greenLane && greenLane !== 'none') {
+      const last = cycleOrder[cycleOrder.length - 1];
+      if (last !== greenLane) cycleOrder.push(greenLane);
+    }
+    for (let i = 1; i <= 3; i++) {
+      const step = document.getElementById('step-' + i);
+      const lbl  = document.getElementById('lbl-' + i);
+      const lane = cycleOrder[i - 1] || null;
+      step.classList.remove('done', 'active');
+      lbl.textContent = lane ? 'Lane ' + lane : '—';
+      if (i < pos)      step.classList.add('done');
+      else if (i === pos) step.classList.add('active');
+    }
+  }
+
+  function fetchData() {
+    const url = document.getElementById('server-url').value.trim();
+    fetch(url)
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(d => {
+        if (!connected) {
+          setConnected(true);
+          addLog('Connected — receiving data');
+        }
+
+        const green  = d.green  || 'none';
+        const yellow = d.yellow || 'none';
+        const counts = { A: d.lane_A, B: d.lane_B, C: d.lane_C };
+        const maxCount = Math.max(d.lane_A, d.lane_B, d.lane_C, 1);
+
+        ['A', 'B', 'C'].forEach(lane => {
+          let state = 'red';
+          if (lane === green)  state = 'green';
+          if (lane === yellow) state = 'yellow';
+          setLaneCard(lane, state, counts[lane], maxCount);
+        });
+
+        // IR badges
+        ['B', 'C'].forEach(lane => {
+          const badge = document.getElementById('ir-' + lane);
+          if (green === lane) {
+            badge.className = 'ir-badge active';
+            badge.innerHTML = '<div class="ir-dot"></div>IR sensor ' + lane + ' — monitoring';
+          } else {
+            badge.className = 'ir-badge';
+            badge.innerHTML = '<div class="ir-dot"></div>IR sensor ' + lane;
+          }
+        });
+
+        // Log events
+        if (green !== prevGreen && green !== 'none') {
+          addLog('Lane ' + green + ' GREEN — ' + d.time + 's allocated');
+        }
+        if (yellow !== prevYellow && yellow !== 'none') {
+          addLog('Lane ' + yellow + ' YELLOW — transitioning');
+        }
+        if (d.total_cycles !== prevCycle && prevCycle !== null) {
+          addLog('Cycle #' + d.total_cycles + ' started — lanes rescanned');
+        }
+        prevGreen  = green;
+        prevYellow = yellow;
+
+        // Metrics
+        document.getElementById('m-cycles').textContent = d.total_cycles;
+        document.getElementById('m-pos').textContent    = d.cycle_position;
+        document.getElementById('m-time').textContent   = d.time;
+
+        if (green !== 'none') {
+          document.getElementById('m-green').textContent = 'Lane ' + green;
+          document.getElementById('m-phase').textContent = 'green phase';
+        } else if (yellow !== 'none') {
+          document.getElementById('m-green').textContent = 'Lane ' + yellow;
+          document.getElementById('m-phase').textContent = 'yellow transition';
+        } else {
+          document.getElementById('m-green').textContent = '—';
+          document.getElementById('m-phase').textContent = 'between phases';
+        }
+
+        // Timer
+        document.getElementById('t-big').textContent = d.time;
+        if (green !== 'none') {
+          document.getElementById('t-label').textContent = 'Lane ' + green + ' green remaining';
+          document.getElementById('t-bar').style.background = '#2ea84a';
+          if (d.time > timerMax) timerMax = d.time;
+        } else if (yellow !== 'none') {
+          document.getElementById('t-label').textContent = 'Lane ' + yellow + ' yellow transition';
+          document.getElementById('t-bar').style.background = '#d4930a';
+          timerMax = Math.max(d.time, 3);
+        } else {
+          document.getElementById('t-label').textContent = 'Between phases';
+          document.getElementById('t-bar').style.background = '#1a2a38';
+        }
+        const pct = Math.round((d.time / Math.max(timerMax, 1)) * 100);
+        document.getElementById('t-bar').style.width = pct + '%';
+
+        updateCycleTrack(d.cycle_position, d.total_cycles, green);
+      })
+      .catch(() => {
+        if (connected) {
+          setConnected(false);
+          addLog('Connection lost — retrying');
+        }
+      });
+  }
+</script>
+</body>
+</html>
