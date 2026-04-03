@@ -1,6 +1,7 @@
 from ultralytics import YOLO
 import cv2
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request, send_file
+from flask_cors import CORS
 import threading
 import time
 import logging
@@ -8,6 +9,7 @@ import logging
 model = YOLO('yolov8n.pt')
 
 app = Flask(__name__)
+CORS(app)
 
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
@@ -23,9 +25,56 @@ latest_data = {
     "total_cycles": 0
 }
 
+extension_used = {
+    "A": True,
+    "B": False,
+    "C": False
+}
+
+EXTENSION_SECONDS = 10
+
+# ── Route 1: dashboard page ───────────────────────────────────────────────────
+@app.route('/')
+def dashboard():
+    return send_file('dashboard.html')
+
+# ── Route 2: traffic data JSON ────────────────────────────────────────────────
 @app.route('/traffic', methods=['GET'])
 def get_traffic():
     return jsonify(latest_data)
+
+# ── Route 3: IR sensor extension ─────────────────────────────────────────────
+@app.route('/extend', methods=['POST'])
+def extend_green():
+    data = request.get_json()
+    if not data or "lane" not in data:
+        return jsonify({"status": "error", "reason": "missing lane"}), 400
+
+    lane = data["lane"].upper()
+
+    if lane not in ["B", "C"]:
+        return jsonify({"status": "error",
+                        "reason": "no IR sensor on that lane"}), 400
+
+    if latest_data["green"] != lane:
+        return jsonify({"status": "ignored",
+                        "reason": f"lane {lane} is not currently green"}), 200
+
+    if extension_used[lane]:
+        return jsonify({"status": "ignored",
+                        "reason": f"extension already used for lane {lane} this cycle"}), 200
+
+    extension_used[lane] = True
+    latest_data["time"] += EXTENSION_SECONDS
+    print(f"\n  ⚡ IR sensor on Lane {lane} triggered — +{EXTENSION_SECONDS}s added",
+          flush=True)
+
+    return jsonify({
+        "status": "extended",
+        "lane": lane,
+        "added_seconds": EXTENSION_SECONDS,
+        "new_time": latest_data["time"]
+    }), 200
 
 def run_server():
     app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
@@ -61,7 +110,6 @@ def read_frame(cap):
     return ret, frame
 
 def get_latest_frames(cap_A, cap_B, cap_C):
-    """Read one fresh frame from each lane and run detection."""
     _, fA = read_frame(cap_A)
     _, fB = read_frame(cap_B)
     _, fC = read_frame(cap_C)
@@ -107,21 +155,6 @@ def yellow_phase(outgoing_lane, incoming_lane,
                  countA, countB, countC,
                  resA, resB, resC,
                  yellow_duration=3):
-    """
-    Two-stage yellow transition between lanes:
-
-    Stage 1 — OUTGOING yellow:
-        The lane that just finished green goes yellow.
-        All other lanes stay red.
-        ESP32 shows yellow on outgoing lane.
-
-    Stage 2 — INCOMING yellow:
-        The lane about to go green goes yellow.
-        All other lanes stay red.
-        ESP32 prepares drivers that green is coming.
-    """
-
-    # ── Stage 1: outgoing lane yellow ─────────────────────────────────────
     print(f"\n  🟡 Lane {outgoing_lane} — YELLOW (clearing)", flush=True)
     latest_data["green"]  = "none"
     latest_data["yellow"] = outgoing_lane
@@ -130,9 +163,7 @@ def yellow_phase(outgoing_lane, incoming_lane,
         latest_data["time"] = t
         print(f"  🟡 Outgoing Lane {outgoing_lane} YELLOW — {t}s   ",
               end="\r", flush=True)
-
         fA, fB, fC, rA, rB, rC = get_latest_frames(cap_A, cap_B, cap_C)
-
         keep = show_frames(fA, fB, fC, rA, rB, rC,
                            countA, countB, countC,
                            green_lane="none",
@@ -145,7 +176,6 @@ def yellow_phase(outgoing_lane, incoming_lane,
     print()
     latest_data["yellow"] = "none"
 
-    # ── Stage 2: incoming lane yellow (only if there is a next lane) ───────
     if incoming_lane is not None:
         print(f"\n  🟡 Lane {incoming_lane} — YELLOW (preparing)", flush=True)
         latest_data["yellow"] = incoming_lane
@@ -154,9 +184,7 @@ def yellow_phase(outgoing_lane, incoming_lane,
             latest_data["time"] = t
             print(f"  🟡 Incoming Lane {incoming_lane} YELLOW — {t}s   ",
                   end="\r", flush=True)
-
             fA, fB, fC, rA, rB, rC = get_latest_frames(cap_A, cap_B, cap_C)
-
             keep = show_frames(fA, fB, fC, rA, rB, rC,
                                countA, countB, countC,
                                green_lane="none",
@@ -187,6 +215,10 @@ while True:
     print("🔍 Scanning all lanes...")
     print("="*50)
 
+    extension_used["A"] = True
+    extension_used["B"] = False
+    extension_used["C"] = False
+
     retA, frameA = read_frame(cap_A)
     retB, frameB = read_frame(cap_B)
     retC, frameC = read_frame(cap_C)
@@ -213,22 +245,20 @@ while True:
 
     for position, (lane, count) in enumerate(sorted_lanes):
         green_time = get_green_time(count)
+        next_lane  = sorted_lanes[position + 1][0] \
+                     if position + 1 < len(sorted_lanes) else None
 
-        # Determine which lane comes next (None if this is the last lane)
-        next_lane = sorted_lanes[position + 1][0] if position + 1 < len(sorted_lanes) else None
-
-        latest_data["green"]         = lane
-        latest_data["yellow"]        = "none"
-        latest_data["time"]          = green_time
+        latest_data["green"]          = lane
+        latest_data["yellow"]         = "none"
+        latest_data["time"]           = green_time
         latest_data["cycle_position"] = position + 1
 
         print(f"\n{priority_labels[position]}")
         print(f"  Lane {lane} → {count} vehicles → GREEN for {green_time}s",
               flush=True)
 
-        # ── Green phase countdown ──────────────────────────────────────────
-        for remaining in range(green_time, 0, -1):
-            latest_data["time"] = remaining
+        while latest_data["time"] > 0:
+            remaining = latest_data["time"]
             print(f"  ⏱  Lane {lane} GREEN — {remaining}s remaining   ",
                   end="\r", flush=True)
 
@@ -257,12 +287,11 @@ while True:
                 exit()
 
             time.sleep(1)
+            latest_data["time"] -= 1
 
         print()
         print(f"  ✅ Lane {lane} green phase done.", flush=True)
 
-        # ── Two-stage yellow transition ────────────────────────────────────
-        # outgoing = current lane, incoming = next lane (None on last lane)
         keep_running = yellow_phase(
             outgoing_lane=lane,
             incoming_lane=next_lane,
