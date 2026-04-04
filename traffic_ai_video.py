@@ -5,6 +5,9 @@ from flask_cors import CORS
 import threading
 import time
 import logging
+import os
+import glob
+import random
 
 model = YOLO('yolov8n.pt')
 
@@ -33,17 +36,20 @@ extension_used = {
 
 EXTENSION_SECONDS = 10
 
-# ── Route 1: dashboard page ───────────────────────────────────────────────────
+# Folder scanned for videos every cycle
+MEDIA_FOLDER = r"C:\FlowSync AI\test_media"
+
+# Supported video extensions
+VIDEO_EXTENSIONS = ["*.mp4", "*.avi", "*.mov", "*.mkv"]
+
 @app.route('/')
 def dashboard():
     return send_file('dashboard.html')
 
-# ── Route 2: traffic data JSON ────────────────────────────────────────────────
 @app.route('/traffic', methods=['GET'])
 def get_traffic():
     return jsonify(latest_data)
 
-# ── Route 3: IR sensor extension ─────────────────────────────────────────────
 @app.route('/extend', methods=['POST'])
 def extend_green():
     data = request.get_json()
@@ -199,14 +205,44 @@ def yellow_phase(outgoing_lane, incoming_lane,
 
     return True
 
-# ── Open video sources ─────────────────────────────────────────────────────────
-cap_A = cv2.VideoCapture(r"C:\FlowSync AI\test_media\sample_traffic.mp4")
-cap_B = cv2.VideoCapture(r"C:\FlowSync AI\test_media\sample_traffic2.mp4")
-cap_C = cv2.VideoCapture(r"C:\FlowSync AI\test_media\sample_traffic3.mp4")
+def get_all_videos():
+    """
+    Scans the media folder and returns all video file paths found.
+    Runs fresh every cycle so newly added videos are picked up.
+    """
+    found = []
+    for ext in VIDEO_EXTENSIONS:
+        found.extend(glob.glob(os.path.join(MEDIA_FOLDER, ext)))
+    return found
 
-if not (cap_A.isOpened() and cap_B.isOpened() and cap_C.isOpened()):
-    print("❌ One or more video files could not be opened. Check paths.")
-    exit()
+def open_video_caps(all_videos):
+    """
+    Assigns one video per lane and opens VideoCapture objects.
+    Returns cap_A, cap_B, cap_C and the assigned paths.
+    Returns None if not enough videos found.
+    """
+    if len(all_videos) == 0:
+        return None, None, None, None
+
+    if len(all_videos) >= 3:
+        selected = random.sample(all_videos, 3)
+    elif len(all_videos) == 2:
+        selected = [all_videos[0], all_videos[1], random.choice(all_videos)]
+    else:
+        selected = [all_videos[0], all_videos[0], all_videos[0]]
+
+    cap_A = cv2.VideoCapture(selected[0])
+    cap_B = cv2.VideoCapture(selected[1])
+    cap_C = cv2.VideoCapture(selected[2])
+
+    paths = {"A": selected[0], "B": selected[1], "C": selected[2]}
+    return cap_A, cap_B, cap_C, paths
+
+def release_caps(cap_A, cap_B, cap_C):
+    """Safely release video captures if they are open."""
+    if cap_A: cap_A.release()
+    if cap_B: cap_B.release()
+    if cap_C: cap_C.release()
 
 cycle_count = 0
 
@@ -219,13 +255,36 @@ while True:
     extension_used["B"] = False
     extension_used["C"] = False
 
+    # ── Fetch fresh videos from folder every cycle ────────────────────────
+    all_videos = get_all_videos()
+
+    if not all_videos:
+        print(f"❌ No videos found in {MEDIA_FOLDER}")
+        print("   Add .mp4 or .avi files and the next cycle will pick them up.")
+        time.sleep(5)
+        continue
+
+    cap_A, cap_B, cap_C, paths = open_video_caps(all_videos)
+
+    if not (cap_A.isOpened() and cap_B.isOpened() and cap_C.isOpened()):
+        print("❌ Could not open one or more video files")
+        release_caps(cap_A, cap_B, cap_C)
+        time.sleep(3)
+        continue
+
+    print(f"  📁 Found {len(all_videos)} video(s) in folder")
+    print(f"  🅰  Lane A → {os.path.basename(paths['A'])}")
+    print(f"  🅱  Lane B → {os.path.basename(paths['B'])}")
+    print(f"  🅲  Lane C → {os.path.basename(paths['C'])}")
+
     retA, frameA = read_frame(cap_A)
     retB, frameB = read_frame(cap_B)
     retC, frameC = read_frame(cap_C)
 
     if not (retA and retB and retC):
         print("❌ Could not read frames")
-        break
+        release_caps(cap_A, cap_B, cap_C)
+        continue
 
     countA, resA = count_vehicles(frameA)
     countB, resB = count_vehicles(frameB)
@@ -280,9 +339,7 @@ while True:
             )
             if not keep_running:
                 print("\n\n👋 ESC pressed — exiting.")
-                cap_A.release()
-                cap_B.release()
-                cap_C.release()
+                release_caps(cap_A, cap_B, cap_C)
                 cv2.destroyAllWindows()
                 exit()
 
@@ -302,15 +359,13 @@ while True:
         )
         if not keep_running:
             print("\n\n👋 ESC pressed — exiting.")
-            cap_A.release()
-            cap_B.release()
-            cap_C.release()
+            release_caps(cap_A, cap_B, cap_C)
             cv2.destroyAllWindows()
             exit()
 
+    # Release current cycle's captures before next cycle opens fresh ones
+    release_caps(cap_A, cap_B, cap_C)
+
     print(f"\n🔄 Full cycle complete. Re-scanning now... (Total cycles: {cycle_count})")
 
-cap_A.release()
-cap_B.release()
-cap_C.release()
 cv2.destroyAllWindows()

@@ -5,6 +5,9 @@ from flask_cors import CORS
 import threading
 import time
 import logging
+import os
+import glob
+import random
 
 model = YOLO('yolov8n.pt')
 
@@ -33,17 +36,20 @@ extension_used = {
 
 EXTENSION_SECONDS = 10
 
-# ── Route 1: dashboard page ───────────────────────────────────────────────────
+# Folder Flask scans for images — drop any jpg/png here
+MEDIA_FOLDER = r"C:\FlowSync AI\test_media"
+
+# Supported image extensions
+IMAGE_EXTENSIONS = ["*.jpg", "*.jpeg", "*.png"]
+
 @app.route('/')
 def dashboard():
     return send_file('dashboard.html')
 
-# ── Route 2: traffic data JSON ────────────────────────────────────────────────
 @app.route('/traffic', methods=['GET'])
 def get_traffic():
     return jsonify(latest_data)
 
-# ── Route 3: IR sensor extension ─────────────────────────────────────────────
 @app.route('/extend', methods=['POST'])
 def extend_green():
     data = request.get_json()
@@ -103,12 +109,6 @@ def count_vehicles(frame):
     return count
 
 def yellow_phase(lane, next_lane, yellow_duration=3):
-    """
-    Two-stage yellow transition between lanes.
-    Stage 1 — outgoing lane goes yellow.
-    Stage 2 — incoming lane goes yellow (if there is one).
-    """
-    # Stage 1 — outgoing yellow
     print(f"\n  🟡 Lane {lane} — YELLOW (clearing)", flush=True)
     latest_data["green"]  = "none"
     latest_data["yellow"] = lane
@@ -122,7 +122,6 @@ def yellow_phase(lane, next_lane, yellow_duration=3):
     print()
     latest_data["yellow"] = "none"
 
-    # Stage 2 — incoming yellow
     if next_lane is not None:
         print(f"\n  🟡 Lane {next_lane} — YELLOW (preparing)", flush=True)
         latest_data["yellow"] = next_lane
@@ -136,12 +135,43 @@ def yellow_phase(lane, next_lane, yellow_duration=3):
         print()
         latest_data["yellow"] = "none"
 
-# Image pool — rotates each cycle to simulate changing traffic
-image_pool = [
-    r"C:\FlowSync AI\test_media\test5.jpg",
-    r"C:\FlowSync AI\test_media\test6.jpg",
-    r"C:\FlowSync AI\test_media\test7.jpg",
-]
+def get_all_images():
+    """
+    Scans the media folder and returns all image file paths found.
+    Runs fresh every cycle so newly added images are picked up.
+    """
+    found = []
+    for ext in IMAGE_EXTENSIONS:
+        found.extend(glob.glob(os.path.join(MEDIA_FOLDER, ext)))
+    return found
+
+def assign_images_to_lanes(all_images):
+    """
+    Assigns one image per lane from the available pool.
+
+    Rules:
+    - If 3 or more images exist: each lane gets a different image
+      selected randomly so each cycle feels fresh
+    - If exactly 2 images: A and B get unique images, C reuses one
+    - If exactly 1 image: all lanes use the same image
+    - If 0 images: returns None so the main loop can handle it
+    """
+    if len(all_images) == 0:
+        return None
+
+    if len(all_images) >= 3:
+        # Pick 3 different images at random from whatever is in the folder
+        selected = random.sample(all_images, 3)
+    elif len(all_images) == 2:
+        selected = [all_images[0], all_images[1], random.choice(all_images)]
+    else:
+        selected = [all_images[0], all_images[0], all_images[0]]
+
+    return {
+        "A": selected[0],
+        "B": selected[1],
+        "C": selected[2]
+    }
 
 cycle_count = 0
 
@@ -150,24 +180,34 @@ while True:
     print("🔍 Scanning all lanes...")
     print("="*50)
 
-    # Reset extension flags every cycle
     extension_used["A"] = True
     extension_used["B"] = False
     extension_used["C"] = False
 
-    # Rotate image assignments each cycle so counts vary
-    offset = cycle_count % len(image_pool)
-    path_A = image_pool[(0 + offset) % len(image_pool)]
-    path_B = image_pool[(1 + offset) % len(image_pool)]
-    path_C = image_pool[(2 + offset) % len(image_pool)]
+    # ── Fetch fresh images from folder every cycle ────────────────────────
+    all_images = get_all_images()
 
-    img_A = cv2.imread(path_A)
-    img_B = cv2.imread(path_B)
-    img_C = cv2.imread(path_C)
+    if not all_images:
+        print(f"❌ No images found in {MEDIA_FOLDER}")
+        print("   Add .jpg or .png files to that folder and the next cycle will pick them up.")
+        time.sleep(5)   # wait 5s then check again instead of crashing
+        continue
+
+    assigned = assign_images_to_lanes(all_images)
+
+    print(f"  📁 Found {len(all_images)} image(s) in folder")
+    print(f"  🅰  Lane A → {os.path.basename(assigned['A'])}")
+    print(f"  🅱  Lane B → {os.path.basename(assigned['B'])}")
+    print(f"  🅲  Lane C → {os.path.basename(assigned['C'])}")
+
+    img_A = cv2.imread(assigned["A"])
+    img_B = cv2.imread(assigned["B"])
+    img_C = cv2.imread(assigned["C"])
 
     if img_A is None or img_B is None or img_C is None:
-        print("❌ Image missing — check file paths")
-        break
+        print("❌ One or more images could not be read — skipping cycle")
+        time.sleep(3)
+        continue
 
     print("  Counting Lane A...", flush=True)
     countA = count_vehicles(img_A)
@@ -204,8 +244,6 @@ while True:
         print(f"  Lane {lane} → {count} vehicles → GREEN for {green_time}s",
               flush=True)
 
-        # Green phase countdown
-        # Uses latest_data["time"] directly so /extend can modify it
         while latest_data["time"] > 0:
             remaining = latest_data["time"]
             print(f"  ⏱  Lane {lane} GREEN — {remaining}s remaining   ",
@@ -216,7 +254,6 @@ while True:
         print()
         print(f"  ✅ Lane {lane} green phase done.", flush=True)
 
-        # Two-stage yellow transition
         yellow_phase(lane, next_lane, yellow_duration=3)
 
     print(f"\n🔄 Full cycle complete. Re-scanning now... (Total cycles: {cycle_count})")
