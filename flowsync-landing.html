@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowSync — Decentralizing Urban Traffic Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:      #05080d;
+  --bg2:     #080d14;
+  --surface: #0c1520;
+  --border:  #132030;
+  --border2: #1a3048;
+  --cyan:    #00c8f0;
+  --green:   #00e887;
+  --amber:   #ffb020;
+  --red:     #ff3c50;
+  --white:   #eef4fc;
+  --text:    #7a9ab8;
+  --dim:     #2a4560;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* ── GRID OVERLAY ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(0,200,240,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,200,240,0.025) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none; z-index: 0;
+}
+
+/* ── NAV ── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 4rem;
+  height: 64px;
+  background: rgba(5,8,13,0.85);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-brand {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 22px; letter-spacing: 0.12em;
+  color: var(--white);
+}
+.nav-brand span { color: var(--cyan); }
+.nav-links { display: flex; gap: 2.5rem; align-items: center; }
+.nav-links a {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--dim); text-decoration: none;
+  transition: color 0.2s;
+}
+.nav-links a:hover { color: var(--cyan); }
+.nav-cta {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; letter-spacing: 0.08em;
+  background: var(--cyan); color: var(--bg);
+  padding: 8px 20px; font-weight: 500;
+  border: none; cursor: pointer;
+  transition: opacity 0.2s;
+  text-decoration: none;
+}
+.nav-cta:hover { opacity: 0.85; }
+
+/* ── SECTIONS ── */
+section { position: relative; z-index: 1; }
+
+/* ── HERO ── */
+.hero {
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  justify-content: center;
+  padding: 120px 4rem 80px;
+  position: relative; overflow: hidden;
+}
+
+/* animated intersection diagram bg */
+.hero-bg-diagram {
+  position: absolute; right: -60px; top: 50%;
+  transform: translateY(-50%);
+  width: 600px; height: 600px;
+  opacity: 0.06;
+}
+
+.hero-eyebrow {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 2rem;
+}
+.eyebrow-line { width: 40px; height: 1px; background: var(--cyan); }
+.eyebrow-text {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--cyan);
+}
+
+h1.hero-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(72px, 10vw, 136px);
+  line-height: 0.88;
+  letter-spacing: 0.02em;
+  color: var(--white);
+  margin-bottom: 2rem;
+}
+h1.hero-title .accent { color: var(--cyan); }
+h1.hero-title .dim { color: var(--dim); }
+
+.hero-sub {
+  font-size: 18px; font-weight: 300;
+  color: var(--text); max-width: 560px;
+  line-height: 1.7; margin-bottom: 3rem;
+}
+
+.hero-actions { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+
+.btn-primary {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
+  background: var(--cyan); color: var(--bg);
+  padding: 14px 32px; font-weight: 500;
+  border: none; cursor: pointer; text-decoration: none;
+  display: inline-block;
+  transition: opacity 0.2s, transform 0.2s;
+}
+.btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
+
+.btn-secondary {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
+  background: transparent; color: var(--white);
+  padding: 13px 32px;
+  border: 1px solid var(--border2); cursor: pointer; text-decoration: none;
+  display: inline-block;
+  transition: border-color 0.2s, color 0.2s;
+}
+.btn-secondary:hover { border-color: var(--cyan); color: var(--cyan); }
+
+.hero-stats {
+  display: flex; gap: 3rem; margin-top: 5rem;
+  padding-top: 3rem; border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.hero-stat-val {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 42px; color: var(--white); letter-spacing: 0.04em;
+  line-height: 1;
+}
+.hero-stat-val span { color: var(--cyan); }
+.hero-stat-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--dim); margin-top: 4px;
+}
+
+/* ── TICKER ── */
+.ticker {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  overflow: hidden; height: 44px;
+  display: flex; align-items: center;
+}
+.ticker-inner {
+  display: flex; gap: 0;
+  animation: ticker 30s linear infinite;
+  white-space: nowrap;
+}
+.ticker-item {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--dim); padding: 0 3rem;
+  display: flex; align-items: center; gap: 12px;
+}
+.ticker-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--cyan); flex-shrink: 0; }
+@keyframes ticker {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* ── PROBLEM SECTION ── */
+.problem {
+  padding: 120px 4rem;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 80px;
+  align-items: center;
+}
+.section-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--cyan); margin-bottom: 1.5rem;
+  display: flex; align-items: center; gap: 10px;
+}
+.section-label::before { content: '//'; color: var(--dim); }
+
+h2.section-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(40px, 5vw, 64px);
+  line-height: 0.95; letter-spacing: 0.03em;
+  color: var(--white); margin-bottom: 1.5rem;
+}
+
+.problem-body { font-size: 16px; color: var(--text); line-height: 1.8; }
+.problem-body p { margin-bottom: 1rem; }
+
+.problem-cards { display: flex; flex-direction: column; gap: 1px; }
+.problem-card {
+  background: var(--surface);
+  border-left: 3px solid var(--border2);
+  padding: 1.5rem 1.75rem;
+  transition: border-color 0.3s;
+}
+.problem-card:hover { border-left-color: var(--red); }
+.problem-card-num {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; letter-spacing: 0.15em;
+  color: var(--dim); margin-bottom: 6px;
+}
+.problem-card-title {
+  font-size: 15px; font-weight: 500; color: var(--white);
+  margin-bottom: 6px;
+}
+.problem-card-body { font-size: 13px; color: var(--text); }
+
+/* ── HOW IT WORKS ── */
+.how {
+  padding: 120px 4rem;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.how-header { text-align: center; margin-bottom: 80px; }
+
+.steps {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 2px; position: relative;
+}
+.step {
+  background: var(--surface);
+  padding: 2rem 1.75rem;
+  position: relative;
+}
+.step::after {
+  content: '→';
+  position: absolute; right: -14px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--dim); font-size: 18px; z-index: 2;
+}
+.step:last-child::after { display: none; }
+
+.step-num {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 56px; color: var(--border2); line-height: 1;
+  margin-bottom: 1rem; letter-spacing: 0.05em;
+}
+.step-icon {
+  width: 36px; height: 36px; margin-bottom: 1rem;
+  display: flex; align-items: center; justify-content: center;
+}
+.step-title {
+  font-size: 15px; font-weight: 500; color: var(--white);
+  margin-bottom: 8px;
+}
+.step-body { font-size: 13px; color: var(--text); line-height: 1.7; }
+.step-tag {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--cyan); margin-top: 14px;
+  border: 1px solid var(--border2); padding: 3px 8px;
+  display: inline-block;
+}
+
+/* ── FEATURES ── */
+.features { padding: 120px 4rem; }
+.features-header { margin-bottom: 64px; }
+.features-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+}
+.feature-card {
+  background: var(--surface); padding: 2.5rem 2rem;
+  border-top: 2px solid transparent;
+  transition: border-color 0.3s;
+  position: relative; overflow: hidden;
+}
+.feature-card:hover { border-top-color: var(--cyan); }
+.feature-card.accent-green:hover { border-top-color: var(--green); }
+.feature-card.accent-amber:hover { border-top-color: var(--amber); }
+.feature-card.accent-red:hover   { border-top-color: var(--red); }
+
+.feature-icon-wrap {
+  width: 44px; height: 44px;
+  border: 1px solid var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 1.5rem;
+}
+.feature-icon-wrap svg { width: 20px; height: 20px; }
+
+.feature-title {
+  font-size: 16px; font-weight: 500; color: var(--white);
+  margin-bottom: 10px;
+}
+.feature-body { font-size: 13px; color: var(--text); line-height: 1.75; }
+.feature-spec {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; color: var(--cyan);
+  margin-top: 1.25rem; letter-spacing: 0.06em;
+}
+
+/* ── INTERSECTION VISUAL ── */
+.visual-section {
+  padding: 120px 4rem;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  display: grid; grid-template-columns: 1fr 1fr; gap: 80px;
+  align-items: center;
+}
+.intersection-diagram {
+  width: 100%; aspect-ratio: 1;
+  max-width: 480px; margin: 0 auto;
+  position: relative;
+}
+
+/* ── TECH STACK ── */
+.tech { padding: 120px 4rem; }
+.tech-header { margin-bottom: 64px; }
+.tech-table { width: 100%; border-collapse: collapse; }
+.tech-table thead tr {
+  border-bottom: 1px solid var(--border2);
+}
+.tech-table th {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--dim); padding: 12px 20px; text-align: left; font-weight: 400;
+}
+.tech-table td {
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.tech-table tr:hover td { background: var(--surface); }
+.tech-layer {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--cyan);
+}
+.tech-name { font-size: 14px; font-weight: 500; color: var(--white); }
+.tech-role { font-size: 13px; color: var(--text); }
+.tech-cost {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: var(--green);
+}
+
+/* ── IMPACT ── */
+.impact {
+  padding: 120px 4rem;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.impact-header { margin-bottom: 64px; }
+.impact-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+}
+.impact-card {
+  background: var(--surface); padding: 2.5rem 2rem;
+  border-left: 3px solid var(--border2);
+}
+.impact-card.c-cyan  { border-left-color: var(--cyan); }
+.impact-card.c-green { border-left-color: var(--green); }
+.impact-card.c-amber { border-left-color: var(--amber); }
+.impact-card.c-red   { border-left-color: var(--red); }
+
+.impact-num {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 52px; line-height: 1; letter-spacing: 0.04em;
+  color: var(--white); margin-bottom: 6px;
+}
+.impact-num.cyan  { color: var(--cyan); }
+.impact-num.green { color: var(--green); }
+.impact-num.amber { color: var(--amber); }
+.impact-num.red   { color: var(--red); }
+
+.impact-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--dim); margin-bottom: 10px;
+}
+.impact-body { font-size: 13px; color: var(--text); line-height: 1.7; }
+
+/* ── ROADMAP ── */
+.roadmap { padding: 120px 4rem; }
+.roadmap-header { margin-bottom: 64px; }
+.roadmap-track {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 0; position: relative;
+}
+.roadmap-track::before {
+  content: '';
+  position: absolute; top: 28px; left: 28px; right: 28px; height: 1px;
+  background: var(--border2); z-index: 0;
+}
+.roadmap-phase { padding: 0 0 0 0; position: relative; }
+.phase-dot-wrap {
+  display: flex; align-items: center; gap: 0;
+  margin-bottom: 2rem; position: relative; z-index: 1;
+}
+.phase-dot {
+  width: 56px; height: 56px; border-radius: 50%;
+  border: 1px solid var(--border2);
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.phase-dot.done { background: var(--cyan); border-color: var(--cyan); }
+.phase-dot svg { width: 18px; height: 18px; }
+
+.phase-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--cyan); margin-bottom: 6px;
+}
+.phase-title { font-size: 15px; font-weight: 500; color: var(--white); margin-bottom: 8px; }
+.phase-items { list-style: none; }
+.phase-items li {
+  font-size: 12px; color: var(--text);
+  padding: 4px 0; border-bottom: 1px solid var(--border);
+  display: flex; gap: 8px; align-items: flex-start;
+}
+.phase-items li::before { content: '—'; color: var(--dim); flex-shrink: 0; }
+.phase-items li:last-child { border-bottom: none; }
+
+/* ── CTA ── */
+.cta-section {
+  padding: 140px 4rem;
+  text-align: center; position: relative; overflow: hidden;
+}
+.cta-section::before {
+  content: '';
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px; height: 600px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(0,200,240,0.04) 0%, transparent 70%);
+  pointer-events: none;
+}
+.cta-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--cyan); margin-bottom: 2rem;
+}
+.cta-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(48px, 7vw, 96px); line-height: 0.9;
+  letter-spacing: 0.03em; color: var(--white);
+  margin-bottom: 2rem;
+}
+.cta-title span { color: var(--cyan); }
+.cta-sub {
+  font-size: 17px; color: var(--text); max-width: 520px;
+  margin: 0 auto 3rem; line-height: 1.7; font-weight: 300;
+}
+.cta-actions { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+
+/* ── FOOTER ── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 3rem 4rem;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 1rem;
+}
+.footer-brand {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px; letter-spacing: 0.1em; color: var(--dim);
+}
+.footer-brand span { color: var(--cyan); }
+.footer-copy {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; letter-spacing: 0.08em;
+  color: var(--dim);
+}
+.footer-links { display: flex; gap: 2rem; }
+.footer-links a {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--dim); text-decoration: none; transition: color 0.2s;
+}
+.footer-links a:hover { color: var(--cyan); }
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate { opacity: 0; }
+.animate.visible { animation: fadeUp 0.7s ease forwards; }
+.delay-1 { animation-delay: 0.1s; }
+.delay-2 { animation-delay: 0.2s; }
+.delay-3 { animation-delay: 0.3s; }
+.delay-4 { animation-delay: 0.4s; }
+.delay-5 { animation-delay: 0.5s; }
+.delay-6 { animation-delay: 0.6s; }
+
+/* hero loads immediately */
+.hero .animate { animation: fadeUp 0.8s ease forwards; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 960px) {
+  nav { padding: 0 2rem; }
+  .nav-links { display: none; }
+  .hero { padding: 100px 2rem 60px; }
+  .problem { padding: 80px 2rem; grid-template-columns: 1fr; gap: 48px; }
+  .how { padding: 80px 2rem; }
+  .steps { grid-template-columns: 1fr 1fr; }
+  .step::after { display: none; }
+  .features { padding: 80px 2rem; }
+  .features-grid { grid-template-columns: 1fr; }
+  .visual-section { padding: 80px 2rem; grid-template-columns: 1fr; }
+  .tech { padding: 80px 2rem; }
+  .impact { padding: 80px 2rem; }
+  .impact-grid { grid-template-columns: 1fr 1fr; }
+  .roadmap { padding: 80px 2rem; }
+  .roadmap-track { grid-template-columns: 1fr 1fr; gap: 40px; }
+  .roadmap-track::before { display: none; }
+  .cta-section { padding: 100px 2rem; }
+  footer { padding: 2rem; flex-direction: column; align-items: flex-start; }
+}
+
+/* ── SVG INTERSECTION ANIMATION ── */
+@keyframes pulse-node {
+  0%, 100% { opacity: 0.4; r: 8; }
+  50%       { opacity: 1; r: 12; }
+}
+@keyframes flow-dash {
+  from { stroke-dashoffset: 200; }
+  to   { stroke-dashoffset: 0; }
+}
+.node-pulse { animation: pulse-node 2s ease-in-out infinite; }
+.node-pulse-b { animation: pulse-node 2s ease-in-out infinite 0.66s; }
+.node-pulse-c { animation: pulse-node 2s ease-in-out infinite 1.33s; }
+.flow-line { animation: flow-dash 3s linear infinite; stroke-dasharray: 8 4; }
+@keyframes blink-green {
+  0%, 45%  { fill: #132030; }
+  50%, 95% { fill: #00e887; }
+  100%     { fill: #132030; }
+}
+@keyframes blink-amber {
+  0%, 30%  { fill: #132030; }
+  35%, 65% { fill: #ffb020; }
+  70%, 100%{ fill: #132030; }
+}
+.sig-g { animation: blink-green 4s ease-in-out infinite; }
+.sig-g2 { animation: blink-green 4s ease-in-out infinite 1.3s; }
+.sig-g3 { animation: blink-green 4s ease-in-out infinite 2.6s; }
+.sig-y { animation: blink-amber 4s ease-in-out infinite 3s; }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-brand">FLOW<span>SYNC</span></div>
+  <div class="nav-links">
+    <a href="#problem">Problem</a>
+    <a href="#how">How it works</a>
+    <a href="#features">Features</a>
+    <a href="#tech">Tech stack</a>
+    <a href="#roadmap">Roadmap</a>
+  </div>
+  <a href="#cta" class="nav-cta">Get in touch</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="home">
+  <!-- Background intersection SVG -->
+  <svg class="hero-bg-diagram" viewBox="0 0 500 500" fill="none">
+    <rect x="200" y="0" width="100" height="500" fill="rgba(0,200,240,0.3)"/>
+    <rect x="0" y="200" width="500" height="100" fill="rgba(0,200,240,0.3)"/>
+    <circle cx="250" cy="250" r="60" stroke="rgba(0,200,240,0.5)" stroke-width="1"/>
+    <circle cx="250" cy="250" r="40" stroke="rgba(0,200,240,0.3)" stroke-width="1" stroke-dasharray="4 4"/>
+    <circle cx="250" cy="100" r="8" fill="rgba(0,232,135,0.6)"/>
+    <circle cx="250" cy="400" r="8" fill="rgba(0,232,135,0.6)"/>
+    <circle cx="100" cy="250" r="8" fill="rgba(0,232,135,0.6)"/>
+    <circle cx="400" cy="250" r="8" fill="rgba(0,232,135,0.6)"/>
+  </svg>
+
+  <div class="hero-eyebrow animate delay-1">
+    <div class="eyebrow-line"></div>
+    <span class="eyebrow-text">Decentralized Urban Traffic Intelligence</span>
+  </div>
+
+  <h1 class="hero-title animate delay-2">
+    EVERY<br>
+    JUNCTION<br>
+    <span class="accent">THINKS.</span>
+  </h1>
+
+  <p class="hero-sub animate delay-3">
+    FlowSync transforms static traffic intersections into autonomous AI-powered nodes — sensing, deciding, and coordinating in real time. Built for Nigeria. Designed for Africa.
+  </p>
+
+  <div class="hero-actions animate delay-4">
+    <a href="#how" class="btn-primary">See how it works</a>
+    <a href="https://github.com/KingDouglas0/FlowSync-AI" class="btn-secondary">View on GitHub</a>
+  </div>
+
+  <div class="hero-stats animate delay-5">
+    <div>
+      <div class="hero-stat-val"><span>$25</span>–40</div>
+      <div class="hero-stat-label">per node — hardware cost</div>
+    </div>
+    <div>
+      <div class="hero-stat-val">3<span>×</span></div>
+      <div class="hero-stat-label">faster emergency response</div>
+    </div>
+    <div>
+      <div class="hero-stat-val"><span>0</span></div>
+      <div class="hero-stat-label">internet required to operate</div>
+    </div>
+    <div>
+      <div class="hero-stat-val">23<span>%</span></div>
+      <div class="hero-stat-label">reduction in idle emissions</div>
+    </div>
+  </div>
+</section>
+
+<!-- TICKER -->
+<div class="ticker">
+  <div class="ticker-inner">
+    <!-- duplicated for seamless loop -->
+    <span class="ticker-item"><span class="ticker-dot"></span>Edge AI vehicle detection</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Mesh coordination protocol</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Solar-hybrid power system</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Emergency corridor protocol</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>YOLOv8 Nano inference</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>ESP32 edge processing</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Flask real-time API</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Offline-first architecture</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Retrofit compatible</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Edge AI vehicle detection</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Mesh coordination protocol</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Solar-hybrid power system</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Emergency corridor protocol</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>YOLOv8 Nano inference</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>ESP32 edge processing</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Flask real-time API</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Offline-first architecture</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Retrofit compatible</span>
+  </div>
+</div>
+
+<!-- PROBLEM -->
+<section class="problem" id="problem">
+  <div>
+    <div class="section-label animate">Problem</div>
+    <h2 class="section-title animate delay-1">African Cities Are Gridlocked.</h2>
+    <div class="problem-body animate delay-2">
+      <p>Lagos. Nairobi. Accra. Every morning, millions of commuters lose hours to congestion that existing infrastructure cannot solve.</p>
+      <p>The assumption has always been that traffic optimization must be centralized, expensive, and dependent on stable connectivity. FlowSync breaks that assumption entirely.</p>
+      <p>Congestion is not a density problem. It is a <strong style="color:var(--white);">coordination failure</strong> — intersections that react instead of think.</p>
+    </div>
+  </div>
+  <div class="problem-cards animate delay-3">
+    <div class="problem-card">
+      <div class="problem-card-num">01 / SIGNAL FAILURE</div>
+      <div class="problem-card-title">Fixed timers ignore reality</div>
+      <div class="problem-card-body">Traffic lights run on rigid cycles set years ago, with no awareness of actual vehicle density or flow.</div>
+    </div>
+    <div class="problem-card">
+      <div class="problem-card-num">02 / NO COORDINATION</div>
+      <div class="problem-card-title">Intersections operate in isolation</div>
+      <div class="problem-card-body">Adjacent junctions cannot communicate. Green waves are impossible. Queues cascade uncontrolled across corridors.</div>
+    </div>
+    <div class="problem-card">
+      <div class="problem-card-num">03 / COST BARRIER</div>
+      <div class="problem-card-title">Western ITS is unaffordable</div>
+      <div class="problem-card-body">Traditional intelligent traffic systems cost $50K–$200K per junction, require stable internet, and depend on centralized servers that fail with the grid.</div>
+    </div>
+    <div class="problem-card">
+      <div class="problem-card-num">04 / EMERGENCY RISK</div>
+      <div class="problem-card-title">Ambulances trapped in traffic</div>
+      <div class="problem-card-body">Emergency response times are 40% longer during peak hours. Manual traffic officers cannot coordinate corridor clearance fast enough.</div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how" id="how">
+  <div class="how-header">
+    <div class="section-label animate">How it works</div>
+    <h2 class="section-title animate delay-1">Four Steps.<br>Fully Autonomous.</h2>
+  </div>
+  <div class="steps">
+    <div class="step animate delay-1">
+      <div class="step-num">01</div>
+      <svg class="step-icon" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="4" stroke="var(--cyan)" stroke-width="1.5"/>
+        <path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="var(--cyan)" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <div class="step-title">Sense</div>
+      <div class="step-body">Camera and IR sensors measure real-time queue lengths and vehicle arrival rates at every lane, every second.</div>
+      <div class="step-tag">ESP32-CAM + YOLOv8</div>
+    </div>
+    <div class="step animate delay-2">
+      <div class="step-num">02</div>
+      <svg class="step-icon" viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="3" width="18" height="18" rx="2" stroke="var(--green)" stroke-width="1.5"/>
+        <path d="M8 12h8M12 8v8" stroke="var(--green)" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <div class="step-title">Decide</div>
+      <div class="step-body">Onboard edge processor runs the adaptive timing algorithm. Lanes sorted by density. Green time allocated proportionally. No cloud needed.</div>
+      <div class="step-tag">ESP32 — on-device logic</div>
+    </div>
+    <div class="step animate delay-3">
+      <div class="step-num">03</div>
+      <svg class="step-icon" viewBox="0 0 24 24" fill="none">
+        <circle cx="5" cy="12" r="2" stroke="var(--amber)" stroke-width="1.5"/>
+        <circle cx="19" cy="12" r="2" stroke="var(--amber)" stroke-width="1.5"/>
+        <circle cx="12" cy="5" r="2" stroke="var(--amber)" stroke-width="1.5"/>
+        <path d="M7 12h10M13.5 6.5l4 4M10.5 6.5l-4 4" stroke="var(--amber)" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <div class="step-title">Coordinate</div>
+      <div class="step-body">ESP-NOW mesh broadcasts congestion state to neighbouring nodes. Downstream junctions pre-adjust before vehicles arrive.</div>
+      <div class="step-tag">ESP-NOW + LoRa mesh</div>
+    </div>
+    <div class="step animate delay-4">
+      <div class="step-num">04</div>
+      <svg class="step-icon" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="9" stroke="var(--cyan)" stroke-width="1.5"/>
+        <path d="M12 7v5l3 3" stroke="var(--cyan)" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <div class="step-title">Adapt</div>
+      <div class="step-body">Cycle completes — HIGH to MEDIUM to LOW priority. Model rescans. Process repeats. Each cycle smarter than the last.</div>
+      <div class="step-tag">Continuous learning loop</div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features" id="features">
+  <div class="features-header">
+    <div class="section-label animate">Features</div>
+    <h2 class="section-title animate delay-1">Built for<br>African Infrastructure.</h2>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card animate delay-1">
+      <div class="feature-icon-wrap">
+        <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="8" height="8" stroke="var(--cyan)" stroke-width="1.5"/><rect x="13" y="3" width="8" height="8" stroke="var(--cyan)" stroke-width="1.5"/><rect x="3" y="13" width="8" height="8" stroke="var(--cyan)" stroke-width="1.5"/><rect x="13" y="13" width="8" height="8" stroke="var(--cyan)" stroke-width="1.5"/></svg>
+      </div>
+      <div class="feature-title">Autonomous intersection control</div>
+      <div class="feature-body">Each node runs its own decision loop independently. No master server, no single point of failure. Remove one node — the network keeps working.</div>
+      <div class="feature-spec">Decentralized by design</div>
+    </div>
+    <div class="feature-card accent-green animate delay-2">
+      <div class="feature-icon-wrap">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="5" cy="5" r="2" stroke="var(--green)" stroke-width="1.5"/><circle cx="19" cy="5" r="2" stroke="var(--green)" stroke-width="1.5"/><circle cx="12" cy="19" r="2" stroke="var(--green)" stroke-width="1.5"/><path d="M7 5h10M6.5 6.5l4 11M17.5 6.5l-4 11" stroke="var(--green)" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <div class="feature-title">Mesh network coordination</div>
+      <div class="feature-body">Nodes communicate peer-to-peer via ESP-NOW (200m) and LoRa (3km+). No router, no internet, no broker. Pure distributed intelligence.</div>
+      <div class="feature-spec" style="color:var(--green);">Up to 3km range · &lt;1ms latency</div>
+    </div>
+    <div class="feature-card accent-amber animate delay-3">
+      <div class="feature-icon-wrap">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="var(--amber)" stroke-width="1.5"/><path d="M12 4V2M12 14v8M8 8H4M16 8h4" stroke="var(--amber)" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <div class="feature-title">Solar-hybrid power</div>
+      <div class="feature-body">10W solar panel charges a LiPo battery pack. 20+ hours of operation during grid outages. Nodes survive extended power cuts that disable conventional systems.</div>
+      <div class="feature-spec" style="color:var(--amber);">Grid-independent · 20+ hr backup</div>
+    </div>
+    <div class="feature-card accent-red animate delay-1">
+      <div class="feature-icon-wrap">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="var(--red)" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="feature-title">Emergency corridor protocol</div>
+      <div class="feature-body">RF beacon or acoustic siren detection triggers a coordinated pre-cleared green wave across the entire corridor — not junction by junction — before the vehicle arrives.</div>
+      <div class="feature-spec" style="color:var(--red);">Corridor-wide · Pre-emptive clearance</div>
+    </div>
+    <div class="feature-card animate delay-2">
+      <div class="feature-icon-wrap">
+        <svg viewBox="0 0 24 24" fill="none"><rect x="2" y="6" width="20" height="12" rx="2" stroke="var(--cyan)" stroke-width="1.5"/><path d="M8 10h8M8 14h5" stroke="var(--cyan)" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <div class="feature-title">Live dashboard &amp; API</div>
+      <div class="feature-body">Flask serves a real-time browser dashboard showing lane counts, active signals, cycle position, countdown timer, and full event log. REST API for ESP32 integration.</div>
+      <div class="feature-spec">HTTP + JSON · Accessible on-network</div>
+    </div>
+    <div class="feature-card animate delay-3">
+      <div class="feature-icon-wrap">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="var(--cyan)" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="feature-title">Retrofit compatible</div>
+      <div class="feature-body">Mounts on existing signal poles. GPIO pins map directly to a relay board that drives standard 220V signals. Zero civil engineering. Zero road works. Same firmware.</div>
+      <div class="feature-spec">Drop-in hardware upgrade</div>
+    </div>
+  </div>
+</section>
+
+<!-- VISUAL SECTION -->
+<section class="visual-section" id="visual">
+  <div>
+    <div class="section-label animate">Live system</div>
+    <h2 class="section-title animate delay-1">One Intersection.<br>Three Lanes.<br>Real Intelligence.</h2>
+    <p class="animate delay-2" style="font-size:15px; color:var(--text); line-height:1.8; margin-top:1.5rem;">
+      The adaptive timing engine sorts lanes by vehicle density every cycle — highest to lowest — and allocates green time proportionally. IR sensors on lanes B and C trigger a one-time 10-second extension when vehicles are detected mid-phase.
+    </p>
+    <div style="margin-top:2rem; display:flex; flex-direction:column; gap:10px;" class="animate delay-3">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--green);"></div>
+        <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text);">16+ vehicles → 70s green</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--amber);"></div>
+        <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text);">6–15 vehicles → 40s green</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--red);"></div>
+        <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text);">0–5 vehicles → 25s green</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Animated intersection SVG -->
+  <div class="intersection-diagram animate delay-2">
+    <svg viewBox="0 0 400 400" fill="none" style="width:100%;height:100%;">
+      <!-- Roads -->
+      <rect x="155" y="0" width="90" height="400" fill="#0c1520"/>
+      <rect x="0" y="155" width="400" height="90" fill="#0c1520"/>
+      <!-- Road lines -->
+      <line x1="200" y1="0" x2="200" y2="155" stroke="#1a3048" stroke-width="1" stroke-dasharray="12 8"/>
+      <line x1="200" y1="245" x2="200" y2="400" stroke="#1a3048" stroke-width="1" stroke-dasharray="12 8"/>
+      <line x1="0" y1="200" x2="155" y2="200" stroke="#1a3048" stroke-width="1" stroke-dasharray="12 8"/>
+      <line x1="245" y1="200" x2="400" y2="200" stroke="#1a3048" stroke-width="1" stroke-dasharray="12 8"/>
+      <!-- Intersection box -->
+      <rect x="155" y="155" width="90" height="90" fill="#0d1a28"/>
+      <rect x="155" y="155" width="90" height="90" stroke="var(--border2)" stroke-width="1"/>
+
+      <!-- Traffic light posts — Lane A (top) -->
+      <rect x="188" y="20" width="4" height="60" fill="var(--border2)"/>
+      <rect x="182" y="20" width="16" height="42" rx="2" fill="var(--surface)" stroke="var(--border2)" stroke-width="1"/>
+      <circle cx="190" cy="30" r="5" fill="#c0392b"/>
+      <circle cx="190" cy="41" r="5" fill="#1a3048"/>
+      <circle cx="190" cy="52" r="5" class="sig-g"/>
+
+      <!-- Traffic light posts — Lane B (right) -->
+      <rect x="320" y="188" width="60" height="4" fill="var(--border2)"/>
+      <rect x="336" y="182" width="42" height="16" rx="2" fill="var(--surface)" stroke="var(--border2)" stroke-width="1"/>
+      <circle cx="346" cy="190" r="5" fill="#c0392b"/>
+      <circle cx="357" cy="190" r="5" fill="#1a3048"/>
+      <circle cx="368" cy="190" r="5" class="sig-g2"/>
+
+      <!-- Traffic light posts — Lane C (left) -->
+      <rect x="20" y="188" width="60" height="4" fill="var(--border2)"/>
+      <rect x="22" y="182" width="42" height="16" rx="2" fill="var(--surface)" stroke="var(--border2)" stroke-width="1"/>
+      <circle cx="32" cy="190" r="5" fill="#1a3048"/>
+      <circle cx="43" cy="190" r="5" class="sig-y"/>
+      <circle cx="54" cy="190" r="5" fill="#1a3048"/>
+
+      <!-- Node dots -->
+      <circle cx="200" cy="80" r="8" fill="var(--cyan)" class="node-pulse"/>
+      <circle cx="320" cy="200" r="8" fill="var(--cyan)" class="node-pulse-b"/>
+      <circle cx="80" cy="200" r="8" fill="var(--cyan)" class="node-pulse-c"/>
+
+      <!-- Flow arrows -->
+      <path d="M200 120 L200 155" stroke="var(--cyan)" stroke-width="1.5" class="flow-line" stroke-dashoffset="0"/>
+      <path d="M280 200 L245 200" stroke="var(--green)" stroke-width="1.5" class="flow-line"/>
+      <path d="M120 200 L155 200" stroke="var(--amber)" stroke-width="1.5" class="flow-line"/>
+
+      <!-- Vehicle count labels -->
+      <rect x="166" y="50" width="48" height="18" rx="2" fill="var(--surface)" stroke="var(--border2)" stroke-width="1"/>
+      <text x="190" y="63" text-anchor="middle" fill="var(--green)" font-family="DM Mono" font-size="10">21 veh</text>
+
+      <rect x="330" y="166" width="48" height="18" rx="2" fill="var(--surface)" stroke="var(--border2)" stroke-width="1"/>
+      <text x="354" y="179" text-anchor="middle" fill="var(--amber)" font-family="DM Mono" font-size="10">17 veh</text>
+
+      <rect x="22" y="166" width="48" height="18" rx="2" fill="var(--surface)" stroke="var(--border2)" stroke-width="1"/>
+      <text x="46" y="179" text-anchor="middle" fill="var(--red)" font-family="DM Mono" font-size="10">13 veh</text>
+
+      <!-- Center label -->
+      <rect x="164" y="168" width="72" height="18" rx="1" fill="#0a1828"/>
+      <text x="200" y="181" text-anchor="middle" fill="var(--cyan)" font-family="DM Mono" font-size="9" letter-spacing="1">FLOWSYNC</text>
+    </svg>
+  </div>
+</section>
+
+<!-- TECH STACK -->
+<section class="tech" id="tech">
+  <div class="tech-header">
+    <div class="section-label animate">Technology</div>
+    <h2 class="section-title animate delay-1">Simple.<br>Proven.<br>Affordable.</h2>
+  </div>
+  <table class="tech-table animate delay-2">
+    <thead>
+      <tr>
+        <th>Layer</th>
+        <th>Component</th>
+        <th>Role</th>
+        <th>Cost</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="tech-layer">Intelligence</span></td>
+        <td><span class="tech-name">ESP32 Dev Board</span></td>
+        <td><span class="tech-role">Runs adaptive timing algorithm, controls signals, hosts Flask API</span></td>
+        <td><span class="tech-cost">$3–5</span></td>
+      </tr>
+      <tr>
+        <td><span class="tech-layer">Vision</span></td>
+        <td><span class="tech-name">ESP32-CAM + OV2640</span></td>
+        <td><span class="tech-role">2MP vehicle density capture via JPEG frame differencing</span></td>
+        <td><span class="tech-cost">$6–8</span></td>
+      </tr>
+      <tr>
+        <td><span class="tech-layer">AI Model</span></td>
+        <td><span class="tech-name">YOLOv8 Nano</span></td>
+        <td><span class="tech-role">Vehicle detection — 50ms inference, runs on laptop, no GPU needed</span></td>
+        <td><span class="tech-cost">Free</span></td>
+      </tr>
+      <tr>
+        <td><span class="tech-layer">Mesh</span></td>
+        <td><span class="tech-name">ESP-NOW + LoRa SX1278</span></td>
+        <td><span class="tech-role">Peer-to-peer corridor communication — 200m to 3km range</span></td>
+        <td><span class="tech-cost">$3–6</span></td>
+      </tr>
+      <tr>
+        <td><span class="tech-layer">Backend</span></td>
+        <td><span class="tech-name">Python + Flask</span></td>
+        <td><span class="tech-role">REST API, dashboard server, YOLO inference pipeline</span></td>
+        <td><span class="tech-cost">Free</span></td>
+      </tr>
+      <tr>
+        <td><span class="tech-layer">Power</span></td>
+        <td><span class="tech-name">10W Solar + 18650 LiPo</span></td>
+        <td><span class="tech-role">Grid-independent operation with 20+ hour battery backup</span></td>
+        <td><span class="tech-cost">$8–15</span></td>
+      </tr>
+      <tr>
+        <td><span class="tech-layer">Sensing</span></td>
+        <td><span class="tech-name">FC-51 IR Sensors</span></td>
+        <td><span class="tech-role">Lane presence detection — triggers 10s green extension once per cycle</span></td>
+        <td><span class="tech-cost">$0.50–1</span></td>
+      </tr>
+    </tbody>
+  </table>
+  <div style="margin-top:2rem;padding:1.5rem;background:var(--surface);border-left:3px solid var(--green);" class="animate delay-3">
+    <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--green);">Total node cost: $25–40 USD · All components locally available in Nigeria · No proprietary lock-in</span>
+  </div>
+</section>
+
+<!-- IMPACT -->
+<section class="impact" id="impact">
+  <div class="impact-header">
+    <div class="section-label animate">Impact</div>
+    <h2 class="section-title animate delay-1">Beyond Traffic.<br>A Foundation for<br>Smarter Cities.</h2>
+  </div>
+  <div class="impact-grid">
+    <div class="impact-card c-cyan animate delay-1">
+      <div class="impact-num cyan">47</div>
+      <div class="impact-label">Minutes recovered daily</div>
+      <div class="impact-body">Per commuter — returned to productivity, family, and life. Multiplied across millions of daily journeys.</div>
+    </div>
+    <div class="impact-card c-green animate delay-2">
+      <div class="impact-num green">23%</div>
+      <div class="impact-label">Emissions reduced</div>
+      <div class="impact-body">Less fuel burned from eliminated idle time at signalised junctions — measurable carbon impact.</div>
+    </div>
+    <div class="impact-card c-red animate delay-3">
+      <div class="impact-num red">3×</div>
+      <div class="impact-label">Faster emergency response</div>
+      <div class="impact-body">Corridor pre-clearance eliminates junction-by-junction delay. Seconds that save lives.</div>
+    </div>
+    <div class="impact-card c-amber animate delay-1">
+      <div class="impact-num amber">₦180B</div>
+      <div class="impact-label">Economic gain per year</div>
+      <div class="impact-body">Annual productivity value unlocked across Lagos alone from reduced commute time.</div>
+    </div>
+    <div class="impact-card c-cyan animate delay-2">
+      <div class="impact-num cyan">Solar</div>
+      <div class="impact-label">Grid independent</div>
+      <div class="impact-body">Cities no longer held hostage by power infrastructure failures. Nodes keep working when the grid goes down.</div>
+    </div>
+    <div class="impact-card c-green animate delay-3">
+      <div class="impact-num green">∞</div>
+      <div class="impact-label">Network effect</div>
+      <div class="impact-body">Every node added strengthens every other node. The network gets smarter as it scales.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ROADMAP -->
+<section class="roadmap" id="roadmap">
+  <div class="roadmap-header">
+    <div class="section-label animate">Roadmap</div>
+    <h2 class="section-title animate delay-1">From Prototype to<br>Pan-African Network.</h2>
+  </div>
+  <div class="roadmap-track">
+    <div class="roadmap-phase animate delay-1">
+      <div class="phase-dot-wrap">
+        <div class="phase-dot done">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L19 7" stroke="var(--bg)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </div>
+      <div class="phase-label">Now · Complete</div>
+      <div class="phase-title">Node 1 Prototype</div>
+      <ul class="phase-items">
+        <li>Full Mode 1 + Mode 2 operational</li>
+        <li>Physical breadboard demo</li>
+        <li>Live dashboard running</li>
+        <li>ESP32 hardware integration</li>
+        <li>YOLOv8 detection pipeline</li>
+      </ul>
+    </div>
+    <div class="roadmap-phase animate delay-2">
+      <div class="phase-dot-wrap">
+        <div class="phase-dot">
+          <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" stroke="var(--dim)" stroke-width="1.5"/></svg>
+        </div>
+      </div>
+      <div class="phase-label">0–6 Months</div>
+      <div class="phase-title">3-Node Corridor</div>
+      <ul class="phase-items">
+        <li>ESP-NOW mesh network</li>
+        <li>Emergency corridor protocol</li>
+        <li>Solar power integration</li>
+        <li>City government pilot partner</li>
+      </ul>
+    </div>
+    <div class="roadmap-phase animate delay-3">
+      <div class="phase-dot-wrap">
+        <div class="phase-dot">
+          <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" stroke="var(--dim)" stroke-width="1.5"/></svg>
+        </div>
+      </div>
+      <div class="phase-label">6–18 Months</div>
+      <div class="phase-title">City Deployment</div>
+      <ul class="phase-items">
+        <li>10 corridors, 50 nodes</li>
+        <li>SaaS dashboard live</li>
+        <li>Maintenance contracts</li>
+        <li>First recurring revenue</li>
+      </ul>
+    </div>
+    <div class="roadmap-phase animate delay-4">
+      <div class="phase-dot-wrap">
+        <div class="phase-dot">
+          <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" stroke="var(--dim)" stroke-width="1.5"/></svg>
+        </div>
+      </div>
+      <div class="phase-label">18 Months+</div>
+      <div class="phase-title">Pan-Africa Scale</div>
+      <ul class="phase-items">
+        <li>Ghana, Kenya, Ethiopia</li>
+        <li>Franchise / partnership model</li>
+        <li>Data licensing platform</li>
+        <li>Custom PCB production</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section" id="cta">
+  <div class="cta-label animate">Get involved</div>
+  <h2 class="cta-title animate delay-1">
+    MAKING CONGESTION<br>
+    <span>PREVENTABLE.</span>
+  </h2>
+  <p class="cta-sub animate delay-2">
+    FlowSync is not a traffic product. It is urban intelligence infrastructure for the next billion city dwellers. Join us in building it.
+  </p>
+  <div class="cta-actions animate delay-3">
+    <a href="mailto:gabrielt.adetayo@gmail.com" class="btn-primary">Contact the team</a>
+    <a href="https://github.com/KingDouglas0/FlowSync-AI" class="btn-secondary">View source on GitHub</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-brand">FLOW<span>SYNC</span></div>
+  <div class="footer-links">
+    <a href="#home">Home</a>
+    <a href="#problem">Problem</a>
+    <a href="#how">How it works</a>
+    <a href="#tech">Tech</a>
+    <a href="https://github.com/KingDouglas0/FlowSync-AI">GitHub</a>
+  </div>
+  <div class="footer-copy">© 2025 FlowSync · Built in Nigeria · MIT License</div>
+</footer>
+
+<script>
+  // Intersection observer for scroll animations
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.15 });
+
+  document.querySelectorAll('.animate').forEach(el => {
+    // Hero elements animate immediately
+    if (el.closest('.hero')) {
+      el.classList.add('visible');
+    } else {
+      observer.observe(el);
+    }
+  });
+
+  // Smooth nav active state
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('.nav-links a');
+
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(section => {
+      const top = section.offsetTop - 80;
+      if (window.scrollY >= top) current = section.getAttribute('id');
+    });
+    navLinks.forEach(link => {
+      link.style.color = link.getAttribute('href') === '#' + current
+        ? 'var(--cyan)' : '';
+    });
+  });
+</script>
+</body>
+</html>
